@@ -19,6 +19,10 @@ datatoenergy = 0.81  # kWh/GB
 options = Options()
 options.headless = True
 
+options.binary_location = "/usr/bin/google-chrome"  # Adjust for your OS
+
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
+
 def fetch_resource_size(resource_url):
     response = requests.get(resource_url)
     if response.status_code == 200:
