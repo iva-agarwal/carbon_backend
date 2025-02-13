@@ -18,8 +18,7 @@ RENEWABLE_CARBON = 50  # g/kWh
 DATA_TO_ENERGY = 0.81  # kWh/GB
 
 # Configure Chrome
-chrome_path = os.getenv("CHROME_BIN", "/tmp/chrome/opt/google/chrome/google-chrome")
-
+chrome_path = os.getenv("CHROME_BIN", "/opt/chrome/opt/google/chrome/google-chrome")
 options = Options()
 options.binary_location = chrome_path
 options.add_argument("--headless")
