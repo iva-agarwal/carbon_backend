@@ -1,15 +1,20 @@
-#!/usr/bin/env bash
+#!/bin/bash
 
-# Set up Chromium in a writable directory
+# Exit immediately if a command exits with a non-zero status
+set -e 
+
+# Create a temporary directory for Chrome
 mkdir -p /tmp/chrome
 cd /tmp/chrome
 
-# Download a prebuilt Chromium binary
-wget -q https://storage.googleapis.com/chrome-for-testing-public/119.0.6045.159/linux64/chrome-linux64.zip
-unzip chrome-linux64.zip
+# Download Google Chrome (official stable version)
+wget -O chrome-linux64.zip https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 
-# Set execute permissions
-chmod +x chrome-linux64/chrome
+# Unzip and install Chrome
+ar x chrome-linux64.zip
+tar -xf data.tar.xz
+mv usr/bin/google-chrome-stable /usr/bin/google-chrome
+chmod +x /usr/bin/google-chrome
 
-# Confirm that Chrome is available
-/tmp/chrome/chrome-linux64/chrome --version
+# Verify installation
+google-chrome --version
