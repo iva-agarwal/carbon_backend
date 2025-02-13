@@ -17,11 +17,11 @@ renw_energytocarbon = 50  # g/kWh
 datatoenergy = 0.81  # kWh/GB
 
 options = Options()
-options.headless = True
+options.binary_location = "/opt/chrome/google-chrome"
+options.add_argument("--headless")  # Ensure headless mode
+options.add_argument("--no-sandbox")
+options.add_argument("--disable-dev-shm-usage")
 
-options.binary_location = "/usr/bin/google-chrome"  # Adjust for your OS
-
-driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 def fetch_resource_size(resource_url):
     response = requests.get(resource_url)
