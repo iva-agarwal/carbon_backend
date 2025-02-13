@@ -7,11 +7,16 @@ CHROME_DIR="/opt/render/chrome"
 CHROMEDRIVER_DIR="$CHROME_DIR/chromedriver"
 
 echo "Cleaning up any existing installation..."
-rm -rf "$CHROMEDRIVER_DIR"/*  # Remove contents but keep directory
+if [ -d "$CHROMEDRIVER_DIR" ]; then
+    rm -rf "$CHROMEDRIVER_DIR"/*  # Remove contents but keep directory
+fi
 rm -f "$CHROME_DIR"/*.deb "$CHROME_DIR"/*.zip  # Remove any leftover archives
 
 echo "Creating directories..."
-mkdir -p "$CHROME_DIR" "$CHROMEDRIVER_DIR"
+mkdir -p "$CHROME_DIR"
+if [ ! -d "$CHROMEDRIVER_DIR" ]; then
+    mkdir -p "$CHROMEDRIVER_DIR"
+fi
 
 cd "$CHROME_DIR"
 
@@ -92,6 +97,7 @@ export CHROME_BIN="$CHROME_BIN"
 export PATH="$CHROMEDRIVER_DIR:$PATH"
 echo "export CHROME_BIN=$CHROME_BIN" >> ~/.bashrc
 echo "export PATH=$CHROMEDRIVER_DIR:\$PATH" >> ~/.bashrc
+source ~/.bashrc  # Apply changes to the current shell
 
 echo "Cleaning up..."
 rm -f chrome.deb chromedriver.zip
