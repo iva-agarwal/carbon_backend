@@ -6,8 +6,13 @@ set -x  # Enable debug output
 CHROME_DIR="/opt/render/chrome"
 CHROMEDRIVER_DIR="$CHROME_DIR/chromedriver"
 
+echo "Cleaning up any existing installation..."
+rm -rf "$CHROMEDRIVER_DIR"/*  # Remove contents but keep directory
+rm -f "$CHROME_DIR"/*.deb "$CHROME_DIR"/*.zip  # Remove any leftover archives
+
 echo "Creating directories..."
 mkdir -p "$CHROME_DIR" "$CHROMEDRIVER_DIR"
+
 cd "$CHROME_DIR"
 
 echo "Downloading Chrome..."
@@ -44,7 +49,6 @@ if [ -z "$CHROME_MAJOR_VERSION" ]; then
 fi
 
 echo "Downloading ChromeDriver..."
-# Try latest stable release first
 CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
 
 if [ -z "$CHROMEDRIVER_VERSION" ] || echo "$CHROMEDRIVER_VERSION" | grep -q "Error"; then
@@ -90,7 +94,7 @@ echo "export CHROME_BIN=$CHROME_BIN" >> ~/.bashrc
 echo "export PATH=$CHROMEDRIVER_DIR:\$PATH" >> ~/.bashrc
 
 echo "Cleaning up..."
-rm chrome.deb chromedriver.zip
+rm -f chrome.deb chromedriver.zip
 
 echo "Verifying installations..."
 echo "Chrome version:"
