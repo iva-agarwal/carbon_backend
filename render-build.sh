@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e  # Exit if any command fails
-
-# Enable debug output
-set -x
+set -x  # Enable debug output
 
 echo "Creating directories..."
 mkdir -p /opt/render/chrome
@@ -42,15 +40,26 @@ if [ -z "$CHROME_MAJOR_VERSION" ]; then
 fi
 
 echo "Downloading ChromeDriver..."
-# First try the latest release for the major version
-CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION")
+# Try known compatible versions in descending order
+# List of recent stable Chrome versions
+VERSIONS_TO_TRY="120 119 118"
 
-if [ -z "$CHROMEDRIVER_VERSION" ]; then
-    echo "Failed to get specific ChromeDriver version, trying latest stable..."
+for VERSION in $VERSIONS_TO_TRY; do
+    echo "Trying ChromeDriver version $VERSION..."
+    CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$VERSION")
+    
+    if [ ! -z "$CHROMEDRIVER_VERSION" ] && ! echo "$CHROMEDRIVER_VERSION" | grep -q "Error"; then
+        echo "Found compatible ChromeDriver version: $CHROMEDRIVER_VERSION"
+        break
+    fi
+done
+
+if [ -z "$CHROMEDRIVER_VERSION" ] || echo "$CHROMEDRIVER_VERSION" | grep -q "Error"; then
+    echo "Failed to find compatible ChromeDriver version, trying latest stable..."
     CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
 fi
 
-if [ -z "$CHROMEDRIVER_VERSION" ]; then
+if [ -z "$CHROMEDRIVER_VERSION" ] || echo "$CHROMEDRIVER_VERSION" | grep -q "Error"; then
     echo "Failed to get ChromeDriver version!"
     exit 1
 fi
