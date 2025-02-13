@@ -1,9 +1,19 @@
 from fastapi import FastAPI, Query
+from fastapi.middleware.cors import CORSMiddleware  # Import CORS Middleware
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlparse
 import requests
 
 app = FastAPI()
+
+# ✅ Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Replace with ["https://eco2info.netlify.app"] for more security
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Constants
 nonrenw_energytocarbon = 441  # g/kWh
