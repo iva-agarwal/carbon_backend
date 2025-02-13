@@ -1,25 +1,29 @@
 import os
-from fastapi import FastAPI
+
+# Install missing Linux dependencies for Chromium
+os.system("apt update && apt install -y chromium-browser chromium-driver")
+
+# Now import everything else
+from fastapi import FastAPI, Query
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+import requests
 
 app = FastAPI()
 
-# ✅ Install Chromium & Chromedriver (required for Railway)
-os.system("apt update && apt install -y chromium-browser chromium-chromedriver")
+options = Options()
+options.headless = True  # Run in headless mode (no UI)
+options.add_argument("--no-sandbox")  # Needed for Railway
+options.add_argument("--disable-dev-shm-usage")  # Prevent crashes in container
+options.binary_location = "/usr/bin/chromium-browser"  # Set Chromium binary path
 
-# ✅ Set up Chrome options
-chrome_options = Options()
-chrome_options.add_argument("--headless")  # Run in headless mode (no GUI)
-chrome_options.add_argument("--no-sandbox")  # Bypass OS security model
-chrome_options.add_argument("--disable-dev-shm-usage")  # Prevent crashes
-chrome_options.binary_location = "/usr/bin/chromium-browser"  # ✅ Set correct Chromium path
-
-# ✅ Function to start Selenium WebDriver
 def get_driver():
-    return webdriver.Chrome(service=Service("/usr/bin/chromedriver"), options=chrome_options)
+    """Set up and return a Chrome WebDriver instance."""
+    service = Service(ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=options)
 
 @app.get("/")
 def home():
@@ -27,7 +31,7 @@ def home():
 
 @app.get("/test")
 def test_selenium():
-    """Test if Selenium works by opening Google."""
+    """Test Selenium by opening a webpage."""
     try:
         driver = get_driver()
         driver.get("https://www.google.com")
