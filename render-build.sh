@@ -1,6 +1,9 @@
 #!/bin/bash
 set -e  # Exit if any command fails
 
+# Enable debug output
+set -x
+
 echo "Creating directories..."
 mkdir -p /opt/render/chrome
 cd /opt/render/chrome
@@ -25,23 +28,59 @@ fi
 
 chmod +x $CHROME_BIN
 
+echo "Getting Chrome version..."
+CHROME_VERSION=$($CHROME_BIN --version)
+echo "Chrome version: $CHROME_VERSION"
+
+# Extract major version more reliably
+CHROME_MAJOR_VERSION=$(echo "$CHROME_VERSION" | sed -n 's/.*Chrome \([0-9]*\).*/\1/p')
+echo "Chrome major version: $CHROME_MAJOR_VERSION"
+
+if [ -z "$CHROME_MAJOR_VERSION" ]; then
+    echo "Failed to extract Chrome version!"
+    exit 1
+fi
+
 echo "Downloading ChromeDriver..."
-CHROME_VERSION=$($CHROME_BIN --version | cut -d ' ' -f 3 | cut -d '.' -f 1)
-CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_VERSION")
+# First try the latest release for the major version
+CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$CHROME_MAJOR_VERSION")
+
+if [ -z "$CHROMEDRIVER_VERSION" ]; then
+    echo "Failed to get specific ChromeDriver version, trying latest stable..."
+    CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
+fi
 
 if [ -z "$CHROMEDRIVER_VERSION" ]; then
     echo "Failed to get ChromeDriver version!"
     exit 1
 fi
 
-wget -q -O chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"
+echo "ChromeDriver version to be installed: $CHROMEDRIVER_VERSION"
+
+# Download with retry logic
+MAX_RETRIES=3
+RETRY_COUNT=0
+while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+    if wget -q -O chromedriver.zip "https://chromedriver.storage.googleapis.com/$CHROMEDRIVER_VERSION/chromedriver_linux64.zip"; then
+        break
+    fi
+    RETRY_COUNT=$((RETRY_COUNT + 1))
+    echo "Download attempt $RETRY_COUNT failed. Retrying..."
+    sleep 2
+done
 
 if [ ! -f chromedriver.zip ]; then
-    echo "ChromeDriver download failed!"
+    echo "ChromeDriver download failed after $MAX_RETRIES attempts!"
     exit 1
 fi
 
+echo "Extracting ChromeDriver..."
 unzip -q chromedriver.zip
+if [ ! -f chromedriver ]; then
+    echo "ChromeDriver extraction failed!"
+    exit 1
+fi
+
 chmod +x chromedriver
 
 echo "Moving ChromeDriver to path..."
@@ -55,14 +94,10 @@ echo "Cleaning up..."
 rm chrome.deb chromedriver.zip
 
 echo "Verifying installations..."
-if ! $CHROME_BIN --version; then
-    echo "Chrome verification failed!"
-    exit 1
-fi
+echo "Chrome version:"
+$CHROME_BIN --version || { echo "Chrome verification failed!"; exit 1; }
 
-if ! chromedriver --version; then
-    echo "ChromeDriver verification failed!"
-    exit 1
-fi
+echo "ChromeDriver version:"
+chromedriver --version || { echo "ChromeDriver verification failed!"; exit 1; }
 
 echo "Installation completed successfully!"
