@@ -18,13 +18,27 @@ RENEWABLE_CARBON = 50  # g/kWh
 DATA_TO_ENERGY = 0.81  # kWh/GB
 
 # Configure Chrome
-chrome_path = os.getenv("CHROME_BIN", "/usr/bin/google-chrome-stable")
+chrome_path = os.getenv("CHROME_BIN", "/tmp/chrome/opt/google/chrome/google-chrome")
 
-options = webdriver.ChromeOptions()
+options = Options()
 options.binary_location = chrome_path
-options.add_argument("--headless")  # Run in headless mode
+options.add_argument("--headless")
 options.add_argument("--no-sandbox")
 options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+
+# Add these two options to help with deployment environment
+options.add_argument("--disable-software-rasterizer")
+options.add_argument("--disable-extensions")
+
+def get_chrome_service():
+    """Create and return a Chrome service with appropriate configuration"""
+    try:
+        return Service(ChromeDriverManager().install())
+    except Exception as e:
+        # Fallback to a default chromedriver path if installation fails
+        default_driver_path = "/usr/local/bin/chromedriver"
+        return Service(default_driver_path)
 
 def fetch_resource_size(resource_url):
     try:
@@ -48,32 +62,38 @@ def calculate_data_transfer(url):
     """ Calculates the data transfer size of different website resources. """
     css_size_bytes = js_size_bytes = media_size_bytes = 0
 
-    with webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options) as driver:
-        driver.get(url)
-        html_content = driver.page_source
+    service = get_chrome_service()
+    
+    try:
+        with webdriver.Chrome(service=service, options=options) as driver:
+            driver.set_page_load_timeout(30)  # Set page load timeout
+            driver.get(url)
+            html_content = driver.page_source
 
-    soup = BeautifulSoup(html_content, 'html.parser')
-    html_size_bytes = len(html_content)
+        soup = BeautifulSoup(html_content, 'html.parser')
+        html_size_bytes = len(html_content)
 
-    for tag in soup.find_all(['link', 'script', 'video', 'audio', 'img']):
-        src = get_source(tag)
-        if src:
-            resource_url = urljoin(url, src)
-            size_bytes = fetch_resource_size(resource_url)
+        for tag in soup.find_all(['link', 'script', 'video', 'audio', 'img']):
+            src = get_source(tag)
+            if src:
+                resource_url = urljoin(url, src)
+                size_bytes = fetch_resource_size(resource_url)
 
-            if tag.name == 'link' and tag.get('rel') == ['stylesheet']:
-                css_size_bytes += size_bytes
-            elif tag.name == 'script':
-                js_size_bytes += size_bytes
-            elif tag.name in ['video', 'audio', 'img']:
-                media_size_bytes += size_bytes
+                if tag.name == 'link' and tag.get('rel') == ['stylesheet']:
+                    css_size_bytes += size_bytes
+                elif tag.name == 'script':
+                    js_size_bytes += size_bytes
+                elif tag.name in ['video', 'audio', 'img']:
+                    media_size_bytes += size_bytes
 
-    return (
-        css_size_bytes / (1024 ** 3),  # Convert bytes to GB
-        js_size_bytes / (1024 ** 3),
-        media_size_bytes / (1024 ** 3),
-        html_size_bytes / (1024 ** 3)
-    )
+        return (
+            css_size_bytes / (1024 ** 3),  # Convert bytes to GB
+            js_size_bytes / (1024 ** 3),
+            media_size_bytes / (1024 ** 3),
+            html_size_bytes / (1024 ** 3)
+        )
+    except Exception as e:
+        raise Exception(f"Error during web scraping: {str(e)}")
 
 def check_green_website(url):
     """ Checks if the website is hosted on green energy. """
@@ -91,7 +111,7 @@ def calculate_carbon(data, green):
     return energy_factor * DATA_TO_ENERGY * data
 
 @app.get("/calculate_footprint")
-def calculate_footprint(web_url: str = Query(..., title="Website URL", description="URL of the website to analyze")):
+async def calculate_footprint(web_url: str = Query(..., title="Website URL", description="URL of the website to analyze")):
     try:
         css, js, media, html = calculate_data_transfer(web_url)
         total_data = css + js + media + html
