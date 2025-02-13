@@ -8,14 +8,16 @@ CHROMEDRIVER_DIR="$CHROME_DIR/chromedriver"
 
 echo "Cleaning up any existing installation..."
 if [ -d "$CHROMEDRIVER_DIR" ]; then
-    rm -rf "$CHROMEDRIVER_DIR"/*  # Remove contents but keep directory
+    rm -rf "$CHROMEDRIVER_DIR"
 fi
-rm -f "$CHROME_DIR"/*.deb "$CHROME_DIR"/*.zip  # Remove any leftover archives
+rm -f "$CHROME_DIR"/*.deb "$CHROME_DIR"/*.zip
 
 echo "Creating directories..."
 mkdir -p "$CHROME_DIR"
 if [ ! -d "$CHROMEDRIVER_DIR" ]; then
     mkdir -p "$CHROMEDRIVER_DIR"
+else
+    echo "Directory $CHROMEDRIVER_DIR already exists. Skipping creation."
 fi
 
 cd "$CHROME_DIR"
