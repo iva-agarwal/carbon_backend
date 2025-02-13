@@ -1,130 +1,83 @@
-import os
-from fastapi import FastAPI, Query
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
-import requests
+from fastapi import FastAPI
+from requests_html import HTMLSession
+from urllib.parse import urljoin
 import re
-from webdriver_manager.chrome import ChromeDriverManager
 
-# Initialize FastAPI app
 app = FastAPI()
 
 # Constants
-NON_RENEWABLE_CARBON = 441  # g/kWh
-RENEWABLE_CARBON = 50  # g/kWh
-DATA_TO_ENERGY = 0.81  # kWh/GB
-
-# Configure Chrome
-chrome_path = os.getenv("CHROME_BIN", "/opt/chrome/opt/google/chrome/google-chrome")
-options = Options()
-options.binary_location = chrome_path
-options.add_argument("--headless")
-options.add_argument("--no-sandbox")
-options.add_argument("--disable-dev-shm-usage")
-options.add_argument("--disable-gpu")
-
-# Add these two options to help with deployment environment
-options.add_argument("--disable-software-rasterizer")
-options.add_argument("--disable-extensions")
-
-def get_chrome_service():
-    """Create and return a Chrome service with appropriate configuration"""
-    try:
-        return Service(ChromeDriverManager().install())
-    except Exception as e:
-        # Fallback to a default chromedriver path if installation fails
-        default_driver_path = "/usr/local/bin/chromedriver"
-        return Service(default_driver_path)
+renw_energytocarbon = 50  # g/kWh
+datatoenergy = 0.81  # kWh/GB
 
 def fetch_resource_size(resource_url):
+    """Fetches the size of a given resource (CSS, JS, media, etc.)."""
+    session = HTMLSession()
     try:
-        response = requests.get(resource_url, timeout=10)
+        response = session.get(resource_url, timeout=10)
         if response.status_code == 200:
-            content_length = response.headers.get('Content-Length')
-            return int(content_length) if content_length else len(response.content)
-    except requests.RequestException:
-        pass
+            return len(response.content)
+    except Exception as e:
+        print(f"Error fetching {resource_url}: {e}")
+        return 0
     return 0
 
-def get_source(tag):
-    """ Extracts the URL from various attributes of an HTML tag. """
-    for attr in ['src', 'data-src', 'data-gt-lazy-src', 'href', 'xlink:href', 'poster', 'srcset', 'data-url']:
-        src = tag.get(attr)
-        if src and not src.startswith("data:image/"):  # Ignore base64 images
-            return src
-    return None
-
 def calculate_data_transfer(url):
-    """ Calculates the data transfer size of different website resources. """
-    css_size_bytes = js_size_bytes = media_size_bytes = 0
+    """Calculates data transfer size for different resources (CSS, JS, media)."""
+    css_size_bytes = 0
+    js_size_bytes = 0
+    media_size_bytes = 0
 
-    service = get_chrome_service()
+    session = HTMLSession()
     
     try:
-        with webdriver.Chrome(service=service, options=options) as driver:
-            driver.set_page_load_timeout(30)  # Set page load timeout
-            driver.get(url)
-            html_content = driver.page_source
+        response = session.get(url, timeout=10)
+        response.html.render(timeout=30)  # Render JavaScript
 
-        soup = BeautifulSoup(html_content, 'html.parser')
-        html_size_bytes = len(html_content)
+        html_content = response.content
+        total_size_bytes = len(html_content)
 
-        for tag in soup.find_all(['link', 'script', 'video', 'audio', 'img']):
-            src = get_source(tag)
+        # Extract all linked resources
+        for link_tag in response.html.find("link[rel='stylesheet']"):
+            href = link_tag.attrs.get('href')
+            if href:
+                css_url = urljoin(url, href)
+                css_size_bytes += fetch_resource_size(css_url)
+
+        for script_tag in response.html.find("script"):
+            src = script_tag.attrs.get('src')
             if src:
-                resource_url = urljoin(url, src)
-                size_bytes = fetch_resource_size(resource_url)
+                js_url = urljoin(url, src)
+                js_size_bytes += fetch_resource_size(js_url)
 
-                if tag.name == 'link' and tag.get('rel') == ['stylesheet']:
-                    css_size_bytes += size_bytes
-                elif tag.name == 'script':
-                    js_size_bytes += size_bytes
-                elif tag.name in ['video', 'audio', 'img']:
-                    media_size_bytes += size_bytes
+        for media_tag in response.html.find("video, audio"):
+            src = media_tag.attrs.get('src')
+            if src:
+                media_url = urljoin(url, src)
+                media_size_bytes += fetch_resource_size(media_url)
 
-        return (
-            css_size_bytes / (1024 ** 3),  # Convert bytes to GB
-            js_size_bytes / (1024 ** 3),
-            media_size_bytes / (1024 ** 3),
-            html_size_bytes / (1024 ** 3)
-        )
+        # Convert bytes to GB
+        css_transfer_gb = css_size_bytes / (1024 ** 3)
+        js_transfer_gb = js_size_bytes / (1024 ** 3)
+        media_transfer_gb = media_size_bytes / (1024 ** 3)
+
+        return css_transfer_gb, js_transfer_gb, media_transfer_gb
     except Exception as e:
-        raise Exception(f"Error during web scraping: {str(e)}")
+        print(f"Error processing {url}: {e}")
+        return None
 
-def check_green_website(url):
-    """ Checks if the website is hosted on green energy. """
-    parsed_url = urlparse(url).netloc
-    api_url = f"https://api.thegreenwebfoundation.org/api/v3/greencheck/{parsed_url}"
+@app.get("/calculatecarbon/")
+def calculatecarbon(web_url: str):
+    """API Endpoint to calculate carbon footprint based on data transfer."""
     try:
-        response = requests.get(api_url, timeout=10)
-        return response.json().get("green", False) if response.status_code == 200 else False
-    except requests.RequestException:
-        return False
-
-def calculate_carbon(data, green):
-    """ Calculates the carbon footprint based on the data transfer. """
-    energy_factor = RENEWABLE_CARBON if green else NON_RENEWABLE_CARBON
-    return energy_factor * DATA_TO_ENERGY * data
-
-@app.get("/calculate_footprint")
-async def calculate_footprint(web_url: str = Query(..., title="Website URL", description="URL of the website to analyze")):
-    try:
-        css, js, media, html = calculate_data_transfer(web_url)
-        total_data = css + js + media + html
-        green = check_green_website(web_url)
-        carbon = calculate_carbon(total_data, green)
-
+        css_transfer_gb, js_transfer_gb, media_transfer_gb = calculate_data_transfer(web_url)
+        total_data_gb = sum([css_transfer_gb, js_transfer_gb, media_transfer_gb])
+        
         return {
-            "css_data_gb": css,
-            "js_data_gb": js,
-            "media_data_gb": media,
-            "html_data_gb": html,
-            "total_data_gb": total_data,
-            "carbon_footprint_gCO2": carbon,
-            "green_hosting": green,
+            "url": web_url,
+            "css_data_gb": css_transfer_gb,
+            "js_data_gb": js_transfer_gb,
+            "media_data_gb": media_transfer_gb,
+            "total_data_gb": total_data_gb
         }
     except Exception as e:
         return {"error": str(e)}
