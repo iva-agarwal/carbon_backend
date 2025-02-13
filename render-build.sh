@@ -1,20 +1,19 @@
 #!/bin/bash
 
-set -e  # Exit immediately if any command fails
+set -e  # Exit immediately if a command fails
 
-# Create a temporary directory for Chrome
+# Create a writable directory
 mkdir -p /tmp/chrome
 cd /tmp/chrome
 
-# Download Google Chrome (official stable version)
-wget -O chrome-linux64.zip https://dl.google.com/linux/chrome/linux_signing_key.pub
+# Download the correct Chrome package
+wget -O chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
 
-# Unzip Chrome
-unzip chrome-linux64.zip
-chmod +x chrome-linux64/chrome
+# Install Chrome in a writable directory
+dpkg -x chrome.deb /tmp/chrome
 
-# Set Chrome path in environment variables
-export CHROME_BIN="/tmp/chrome/chrome-linux64/chrome"
+# Set Chrome binary path
+export CHROME_BIN="/tmp/chrome/opt/google/chrome/google-chrome"
 
 # Verify installation
 $CHROME_BIN --version
