@@ -16,11 +16,12 @@ nonrenw_energytocarbon = 441  # g/kWh
 renw_energytocarbon = 50  # g/kWh
 datatoenergy = 0.81  # kWh/GB
 
-options = Options()
-chrome_path = os.getenv("CHROME_BIN", "/tmp/chrome/chrome-linux64/chrome")
+chrome_path = os.getenv("CHROME_BIN", "/tmp/chrome/opt/google/chrome/google-chrome")
 
 options = webdriver.ChromeOptions()
 options.binary_location = chrome_path  # Set the correct path
+
+driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 def fetch_resource_size(resource_url):
