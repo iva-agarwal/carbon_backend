@@ -1,23 +1,54 @@
+import os
+
+# Install missing Linux dependencies for Chromium
+os.system("apt update && apt install -y chromium-browser chromium-driver")
+
+# Now import everything else
 from fastapi import FastAPI, Query
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin, urlparse
-import requests
-import re
 from webdriver_manager.chrome import ChromeDriverManager
+from bs4 import BeautifulSoup
+import requests
 
-# Initialize FastAPI app
 app = FastAPI()
+
+options = Options()
+options.headless = True  # Run in headless mode (no UI)
+options.add_argument("--no-sandbox")  # Needed for Railway
+options.add_argument("--disable-dev-shm-usage")  # Prevent crashes in container
+options.binary_location = "/usr/bin/chromium-browser"  # Set Chromium binary path
+
+def get_driver():
+    """Set up and return a Chrome WebDriver instance."""
+    service = Service(ChromeDriverManager().install())
+    return webdriver.Chrome(service=service, options=options)
+
+@app.get("/")
+def home():
+    return {"message": "FastAPI on Railway with Selenium"}
+
+@app.get("/test")
+def test_selenium():
+    """Test Selenium by opening a webpage."""
+    try:
+        driver = get_driver()
+        driver.get("https://www.google.com")
+        title = driver.title
+        driver.quit()
+        return {"status": "success", "title": title}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 
 # Constants
 nonrenw_energytocarbon = 441  # g/kWh
 renw_energytocarbon = 50  # g/kWh
 datatoenergy = 0.81  # kWh/GB
 
-options = Options()
-options.headless = True
+
 
 def fetch_resource_size(resource_url):
     response = requests.get(resource_url)
