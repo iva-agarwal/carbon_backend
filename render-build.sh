@@ -2,9 +2,13 @@
 set -e  # Exit if any command fails
 set -x  # Enable debug output
 
+# Define a writable directory for our binaries
+CHROME_DIR="/opt/render/chrome"
+CHROMEDRIVER_DIR="$CHROME_DIR/chromedriver"
+
 echo "Creating directories..."
-mkdir -p /opt/render/chrome
-cd /opt/render/chrome
+mkdir -p "$CHROME_DIR" "$CHROMEDRIVER_DIR"
+cd "$CHROME_DIR"
 
 echo "Downloading Chrome..."
 wget -q -O chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
@@ -15,16 +19,16 @@ if [ ! -f chrome.deb ]; then
     exit 1
 fi
 
-dpkg -x chrome.deb /opt/render/chrome
+dpkg -x chrome.deb "$CHROME_DIR"
 
 echo "Setting Chrome binary path..."
-CHROME_BIN="/opt/render/chrome/opt/google/chrome/google-chrome"
+CHROME_BIN="$CHROME_DIR/opt/google/chrome/google-chrome"
 if [ ! -f "$CHROME_BIN" ]; then
     echo "Chrome binary not found at expected location!"
     exit 1
 fi
 
-chmod +x $CHROME_BIN
+chmod +x "$CHROME_BIN"
 
 echo "Getting Chrome version..."
 CHROME_VERSION=$($CHROME_BIN --version)
@@ -40,24 +44,8 @@ if [ -z "$CHROME_MAJOR_VERSION" ]; then
 fi
 
 echo "Downloading ChromeDriver..."
-# Try known compatible versions in descending order
-# List of recent stable Chrome versions
-VERSIONS_TO_TRY="120 119 118"
-
-for VERSION in $VERSIONS_TO_TRY; do
-    echo "Trying ChromeDriver version $VERSION..."
-    CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE_$VERSION")
-    
-    if [ ! -z "$CHROMEDRIVER_VERSION" ] && ! echo "$CHROMEDRIVER_VERSION" | grep -q "Error"; then
-        echo "Found compatible ChromeDriver version: $CHROMEDRIVER_VERSION"
-        break
-    fi
-done
-
-if [ -z "$CHROMEDRIVER_VERSION" ] || echo "$CHROMEDRIVER_VERSION" | grep -q "Error"; then
-    echo "Failed to find compatible ChromeDriver version, trying latest stable..."
-    CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
-fi
+# Try latest stable release first
+CHROMEDRIVER_VERSION=$(curl -s "https://chromedriver.storage.googleapis.com/LATEST_RELEASE")
 
 if [ -z "$CHROMEDRIVER_VERSION" ] || echo "$CHROMEDRIVER_VERSION" | grep -q "Error"; then
     echo "Failed to get ChromeDriver version!"
@@ -92,12 +80,14 @@ fi
 
 chmod +x chromedriver
 
-echo "Moving ChromeDriver to path..."
-mv chromedriver /usr/local/bin/
+echo "Moving ChromeDriver..."
+mv chromedriver "$CHROMEDRIVER_DIR/"
 
 echo "Setting environment variables..."
 export CHROME_BIN="$CHROME_BIN"
+export PATH="$CHROMEDRIVER_DIR:$PATH"
 echo "export CHROME_BIN=$CHROME_BIN" >> ~/.bashrc
+echo "export PATH=$CHROMEDRIVER_DIR:\$PATH" >> ~/.bashrc
 
 echo "Cleaning up..."
 rm chrome.deb chromedriver.zip
@@ -107,6 +97,6 @@ echo "Chrome version:"
 $CHROME_BIN --version || { echo "Chrome verification failed!"; exit 1; }
 
 echo "ChromeDriver version:"
-chromedriver --version || { echo "ChromeDriver verification failed!"; exit 1; }
+"$CHROMEDRIVER_DIR/chromedriver" --version || { echo "ChromeDriver verification failed!"; exit 1; }
 
 echo "Installation completed successfully!"
