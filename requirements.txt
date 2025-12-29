@@ -1,6 +1,4 @@
-fastapi[all]
+fastapi
 uvicorn
-selenium
 beautifulsoup4
 requests
-webdriver-manager
